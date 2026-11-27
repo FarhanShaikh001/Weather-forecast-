@@ -1,0 +1,225 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weather Forecast</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg, #163b70, #53a6c9);
+  min-height: 100vh;
+  padding: 30px 15px;
+  color: white;
+}
+.container {
+  max-width: 750px;
+  margin: auto;
+  text-align: center;
+}
+h1 { margin-bottom: 8px; }
+.search {
+  display: flex;
+  gap: 10px;
+  margin: 25px auto;
+}
+input, button {
+  padding: 13px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+}
+input { flex: 1; min-width: 0; }
+button {
+  background: #ffca55;
+  cursor: pointer;
+  font-weight: bold;
+}
+button:hover { background: #ffb928; }
+.card {
+  background: rgba(255,255,255,.17);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 15px;
+  padding: 22px;
+  margin: 15px 0;
+}
+.temperature { font-size: 55px; font-weight: bold; }
+.details, .forecast {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 20px;
+}
+.forecast { grid-template-columns: repeat(5, 1fr); }
+.forecast-day {
+  background: rgba(255,255,255,.13);
+  border-radius: 10px;
+  padding: 12px 5px;
+}
+.forecast-day p { margin: 7px 0; }
+#message { min-height: 24px; }
+@media(max-width: 550px) {
+  .forecast { grid-template-columns: repeat(2, 1fr); }
+  .search { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🌦 Weather Forecast</h1>
+  <p>Check the weather of your city</p>
+
+  <div class="search">
+    <input id="cityInput" placeholder="Enter city name">
+    <button onclick="searchWeather()">Search</button>
+  </div>
+
+  <p id="message"></p>
+
+  <div id="weatherBox" hidden>
+    <div class="card">
+      <h2 id="cityName"></h2>
+      <div id="weatherIcon" style="font-size:45px">🌤</div>
+      <div class="temperature" id="temperature"></div>
+      <h3 id="condition"></h3>
+      <p id="feelsLike"></p>
+
+      <div class="details">
+        <div>💧 Humidity<br><b id="humidity"></b></div>
+        <div>💨 Wind Speed<br><b id="wind"></b></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>5-Day Forecast</h2>
+      <div class="forecast" id="forecast"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const weatherInfo = {
+  0: ["Clear sky", "☀️"],
+  1: ["Mainly clear", "🌤️"],
+  2: ["Partly cloudy", "⛅"],
+  3: ["Overcast", "☁️"],
+  45: ["Fog", "🌫️"],
+  48: ["Fog", "🌫️"],
+  51: ["Light drizzle", "🌦️"],
+  53: ["Drizzle", "🌦️"],
+  55: ["Heavy drizzle", "🌧️"],
+  61: ["Light rain", "🌧️"],
+  63: ["Rain", "🌧️"],
+  65: ["Heavy rain", "🌧️"],
+  71: ["Light snow", "❄️"],
+  73: ["Snow", "❄️"],
+  75: ["Heavy snow", "❄️"],
+  80: ["Rain showers", "🌦️"],
+  81: ["Rain showers", "🌧️"],
+  82: ["Heavy showers", "⛈️"],
+  95: ["Thunderstorm", "⛈️"]
+};
+
+function getWeather(code) {
+  return weatherInfo[code] || ["Unknown", "🌡️"];
+}
+
+async function searchWeather() {
+  const city = document.getElementById("cityInput").value.trim();
+  const message = document.getElementById("message");
+  const box = document.getElementById("weatherBox");
+
+  if (!city) {
+    message.textContent = "Please enter a city name.";
+    box.hidden = true;
+    return;
+  }
+
+  message.textContent = "Loading weather...";
+  box.hidden = true;
+
+  try {
+    const geoURL =
+      "https://geocoding-api.open-meteo.com/v1/search?name=" +
+      encodeURIComponent(city) + "&count=1&language=en&format=json";
+
+    const geoResponse = await fetch(geoURL);
+    if (!geoResponse.ok) throw new Error("Location service unavailable");
+
+    const geoData = await geoResponse.json();
+
+    if (!geoData.results || geoData.results.length === 0) {
+      throw new Error("City not found. Please try another name.");
+    }
+
+    const place = geoData.results[0];
+
+    const weatherURL =
+      `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}` +
+      `&longitude=${place.longitude}` +
+      "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m" +
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
+      "&forecast_days=5&timezone=auto";
+
+    const response = await fetch(weatherURL);
+    if (!response.ok) throw new Error("Weather service unavailable");
+
+    const data = await response.json();
+    const current = data.current;
+    const [description, icon] = getWeather(current.weather_code);
+
+    document.getElementById("cityName").textContent =
+      place.name + (place.country ? ", " + place.country : "");
+
+    document.getElementById("weatherIcon").textContent = icon;
+    document.getElementById("temperature").textContent =
+      Math.round(current.temperature_2m) + "°C";
+    document.getElementById("condition").textContent = description;
+    document.getElementById("feelsLike").textContent =
+      "Feels like " + Math.round(current.apparent_temperature) + "°C";
+    document.getElementById("humidity").textContent =
+      current.relative_humidity_2m + "%";
+    document.getElementById("wind").textContent =
+      current.wind_speed_10m + " km/h";
+
+    const forecast = document.getElementById("forecast");
+    forecast.innerHTML = "";
+
+    data.daily.time.forEach((date, index) => {
+      const [dayDescription, dayIcon] =
+        getWeather(data.daily.weather_code[index]);
+
+      const day = document.createElement("div");
+      day.className = "forecast-day";
+
+      const dateText = new Date(date + "T12:00:00")
+        .toLocaleDateString("en", { weekday: "short" });
+
+      day.innerHTML = `
+        <b>${dateText}</b>
+        <p style="font-size:25px">${dayIcon}</p>
+        <p>${Math.round(data.daily.temperature_2m_max[index])}° / 
+        ${Math.round(data.daily.temperature_2m_min[index])}°</p>
+        <small>${dayDescription}</small>
+      `;
+
+      forecast.appendChild(day);
+    });
+
+    box.hidden = false;
+    message.textContent = "";
+  } catch (error) {
+    message.textContent = error.message;
+    box.hidden = true;
+  }
+}
+
+document.getElementById("cityInput").addEventListener("keydown", event => {
+  if (event.key === "Enter") searchWeather();
+});
+</script>
+</body>
+</html>
